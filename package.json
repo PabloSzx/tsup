@@ -1,19 +1,30 @@
 {
-  "name": "tsup",
+  "name": "tsup-bug-showcase",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "concurrently \"npm:build-tsup\" \"npm:build-globby\"",
+    "prepare": "concurrently \"npm:build-tsup\" \"npm:build-globby\"",
+    "build-tsup": "rimraf dist-tsup && tsup -d dist-tsup src/*",
+    "build-globby": "rimraf dist-globby && tsup-globby -d dist-globby src"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PabloSzx/tsup.git"
   },
   "author": "PabloSz",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/PabloSzx/tsup/issues"
   },
-  "homepage": "https://github.com/PabloSzx/tsup#readme"
+  "homepage": "https://github.com/PabloSzx/tsup#readme",
+  "dependencies": {
+    "@types/node": "^14.14.2",
+    "concurrently": "^5.3.0",
+    "rimraf": "^3.0.2",
+    "tsup": "^3.7.0",
+    "tsup-globby": "^1.0.1",
+    "typescript": "^4.0.3"
+  }
 }
