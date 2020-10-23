@@ -1,3 +1,1 @@
-export const Foo = () => {
-  return null;
-};
+export * from "./other";

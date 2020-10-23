@@ -4,10 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "concurrently \"npm:build-tsup\" \"npm:build-globby\"",
+    "start": "concurrently \"npm:build-tsup\" \"npm:build-globby\"",
     "prepare": "concurrently \"npm:build-tsup\" \"npm:build-globby\"",
-    "build-tsup": "rimraf dist-tsup && tsup -d dist-tsup src/*",
-    "build-globby": "rimraf dist-globby && tsup-globby -d dist-globby src"
+    "build-tsup": "rimraf dist-tsup && tsup -d dist-tsup --dts src/** src/*",
+    "build-globby": "rimraf dist-globby && tsup-globby -d dist-globby --dts src"
   },
   "repository": {
     "type": "git",
