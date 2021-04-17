@@ -51,7 +51,7 @@ export type Options = {
   minifyIdentifiers?: boolean
   minifySyntax?: boolean
   keepNames?: boolean
-  watch?: boolean | string | string[]
+  watch?: boolean | string | (string | boolean)[]
   ignoreWatch?: string[] | string
   onSuccess?: string
   jsxFactory?: string
@@ -439,7 +439,14 @@ export async function build(_options: Options) {
       ...customIgnores,
     ]
 
-    const watchPaths = typeof options.watch === 'boolean' ? '.' : options.watch
+    const watchPaths =
+      typeof options.watch === 'boolean'
+        ? '.'
+        : Array.isArray(options.watch)
+        ? options.watch.filter(
+            (path): path is string => typeof path === 'string'
+          )
+        : options.watch
 
     console.log(
       makeLabel('CLI', 'info'),
