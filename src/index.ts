@@ -94,6 +94,10 @@ export type Options = {
    */
   clean?: boolean
   esbuildPlugins?: EsbuildPlugin[]
+  /**
+   * Silent non-error logs (excluding "onSuccess" output)
+   */
+  silent?: boolean
 }
 
 export type NormalizedOptions = MarkRequired<
@@ -105,6 +109,23 @@ export const makeLabel = (input: string, type: 'info' | 'success' | 'error') =>
   colors[type === 'info' ? 'bgBlue' : type === 'error' ? 'bgRed' : 'bgGreen'](
     colors.black(` ${input.toUpperCase()} `)
   )
+
+let silent = false
+export function log(
+  label: string,
+  type: 'info' | 'success' | 'error',
+  ...data: any[]
+) {
+  switch (type) {
+    case 'error': {
+      return console.error(makeLabel(label, type), ...data)
+    }
+    default:
+      if (silent) return
+
+      console.log(makeLabel(label, type), ...data)
+  }
+}
 
 const getOutputExtensionMap = (
   pkgTypeField: string | undefined,
@@ -145,7 +166,8 @@ export async function runEsbuild(
       options.minify || options.minifyWhitespace ? 'production' : 'development'
   }
 
-  console.log(`${makeLabel(format, 'info')} Build start`)
+  log(format, 'info', 'Build start')
+
   const startTime = Date.now()
 
   let result: BuildResult | undefined
@@ -196,7 +218,7 @@ export async function runEsbuild(
       incremental: !!options.watch,
     })
   } catch (error) {
-    console.error(`${makeLabel(format, 'error')} Build failed`)
+    log(format, 'error', 'Build failed')
     throw error
   }
 
@@ -224,11 +246,7 @@ export async function runEsbuild(
   // Manually write files
   if (result && result.outputFiles) {
     const timeInMs = Date.now() - startTime
-    console.log(
-      `${makeLabel(format, 'success')} Build success in ${Math.floor(
-        timeInMs
-      )}ms`
-    )
+    log(format, 'success', `Build success in ${Math.floor(timeInMs)}ms`)
 
     const { transform } = await import('sucrase')
     await Promise.all(
@@ -310,13 +328,13 @@ const killProcess = ({
     try {
       process.kill(pid, signal)
     } catch (err) {
-      resolve()
+      return resolve()
     }
     let count = 0
     setInterval(() => {
       try {
         process.kill(pid, 0)
-      } catch (e) {
+      } catch (err) {
         // the process does not exists anymore
         resolve()
       }
@@ -346,10 +364,7 @@ const normalizeOptions = async (
   if (!options.entryPoints || options.entryPoints.length === 0) {
     throw new PrettyError(`Cannot find ${input}`)
   } else {
-    console.log(
-      makeLabel('CLI', 'info'),
-      `Building entry: ${options.entryPoints.join(', ')}`
-    )
+    log('CLI', 'info', `Building entry: ${options.entryPoints.join(', ')}`)
   }
 
   options.outDir = options.outDir || 'dist'
@@ -361,7 +376,7 @@ const normalizeOptions = async (
 
   const tsconfig = await loadTsConfig(process.cwd())
   if (tsconfig.path && tsconfig.data) {
-    console.log(makeLabel('CLI', 'info'), `Using tsconfig: ${tsconfig.path}`)
+    log('CLI', 'info', `Using tsconfig: ${tsconfig.path}`)
     if (!options.jsxFactory) {
       options.jsxFactory = tsconfig.data.compilerOptions?.jsxFactory
     }
@@ -378,18 +393,20 @@ const normalizeOptions = async (
 }
 
 export async function build(_options: Options) {
-  console.log(makeLabel('CLI', 'info'), `tsup v${version}`)
+  log('CLI', 'info', `tsup v${version}`)
 
   const config = await loadTsupConfig(process.cwd())
 
   if (config.path) {
-    console.log(makeLabel('CLI', 'info'), `Using tsup config: ${config.path}`)
+    log('CLI', 'info', `Using tsup config: ${config.path}`)
   }
 
   const options = await normalizeOptions(config.data, _options)
 
+  silent = !!options.silent
+
   if (_options.watch) {
-    console.log(makeLabel('CLI', 'info'), 'Running in watch mode')
+    log('CLI', 'info', 'Running in watch mode')
   }
 
   let existingOnSuccess: ChildProcess | undefined
@@ -403,7 +420,7 @@ export async function build(_options: Options) {
 
     if (options.clean) {
       await removeFiles(['**/*', '!**/*.d.ts'], options.outDir)
-      console.log(makeLabel('CLI', 'info'), `Cleaning output folder`)
+      log('CLI', 'info', 'Cleaning output folder')
     }
 
     const css: Map<string, string> = new Map()
@@ -448,16 +465,18 @@ export async function build(_options: Options) {
           )
         : options.watch
 
-    console.log(
-      makeLabel('CLI', 'info'),
+    log(
+      'CLI',
+      'info',
       `Watching for changes in ${
         Array.isArray(watchPaths)
           ? watchPaths.map((v) => '"' + v + '"').join(' | ')
           : '"' + watchPaths + '"'
       }`
     )
-    console.log(
-      makeLabel('CLI', 'info'),
+    log(
+      'CLI',
+      'info',
       `Ignoring changes in ${ignored.map((v) => '"' + v + '"').join(' | ')}`
     )
 
@@ -467,12 +486,12 @@ export async function build(_options: Options) {
       ignored,
     })
     watcher.on('all', async (type, file) => {
-      console.log(makeLabel('CLI', 'info'), `Change detected: ${type} ${file}`)
+      log('CLI', 'info', `Change detected: ${type} ${file}`)
       await buildAll().catch(handleError)
     })
   }
 
-  console.log(makeLabel('CLI', 'info'), `Target: ${options.target}`)
+  log('CLI', 'info', `Target: ${options.target}`)
 
   await buildAll()
 

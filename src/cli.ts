@@ -65,6 +65,7 @@ async function main() {
     .option('--replaceNodeEnv', 'Replace process.env.NODE_ENV')
     .option('--no-splitting', 'Disable code splitting')
     .option('--clean', 'Clean output directory')
+    .option('--silent', "Silent mode ('onSuccess' process excluded)")
     .action(async (files: string[], flags) => {
       const { build } = await import('./')
       const options: Options = {
