@@ -51,7 +51,7 @@ export type Options = {
   minifyIdentifiers?: boolean
   minifySyntax?: boolean
   keepNames?: boolean
-  watch?: boolean
+  watch?: boolean | string | string[]
   ignoreWatch?: string[] | string
   onSuccess?: string
   jsxFactory?: string
@@ -193,7 +193,7 @@ export async function runEsbuild(
       minifyIdentifiers: options.minifyIdentifiers,
       minifySyntax: options.minifySyntax,
       keepNames: options.keepNames,
-      incremental: options.watch,
+      incremental: !!options.watch,
     })
   } catch (error) {
     console.error(`${makeLabel(format, 'error')} Build failed`)
@@ -297,6 +297,35 @@ export async function runEsbuild(
   return result
 }
 
+const killProcess = ({
+  pid,
+  signal = 'SIGTERM',
+  timeout = 5000,
+}: {
+  pid: number
+  signal: string | number
+  timeout?: number
+}) =>
+  new Promise<void>((resolve, reject) => {
+    try {
+      process.kill(pid, signal)
+    } catch (err) {
+      resolve()
+    }
+    let count = 0
+    setInterval(() => {
+      try {
+        process.kill(pid, 0)
+      } catch (e) {
+        // the process does not exists anymore
+        resolve()
+      }
+      if ((count += 50) > timeout) {
+        reject(new Error('Timeout process kill'))
+      }
+    }, 50)
+  })
+
 const normalizeOptions = async (
   optionsFromConfigFile: Options,
   optionsOverride: Options
@@ -366,7 +395,12 @@ export async function build(_options: Options) {
   let existingOnSuccess: ChildProcess | undefined
 
   const buildAll = async () => {
-    if (existingOnSuccess) existingOnSuccess.kill()
+    if (existingOnSuccess) {
+      await killProcess({
+        pid: existingOnSuccess.pid,
+        signal: 'SIGINT',
+      })
+    }
 
     if (options.clean) {
       await removeFiles(['**/*', '!**/*.d.ts'], options.outDir)
@@ -392,7 +426,7 @@ export async function build(_options: Options) {
   const startWatcher = async () => {
     if (!options.watch) return
 
-    const { watch } = await import('chokidar')
+    const { watch: chokidarWatch } = await import('chokidar')
 
     const customIgnores = options.ignoreWatch
       ? Array.isArray(options.ignoreWatch)
@@ -400,11 +434,19 @@ export async function build(_options: Options) {
         : [options.ignoreWatch]
       : []
 
-    const watcher = watch('.', {
-      ignoreInitial: true,
-      ignorePermissionErrors: true,
-      ignored: ['**/{.git,node_modules}/**', options.outDir, ...customIgnores],
-    })
+    const watcher = chokidarWatch(
+      typeof options.watch === 'boolean' ? '.' : options.watch,
+      {
+        ignoreInitial: true,
+        ignorePermissionErrors: true,
+        ignored: [
+          '**/{.git,node_modules}/**',
+          options.outDir,
+          ...customIgnores,
+        ],
+        awaitWriteFinish: true,
+      }
+    )
     watcher.on('all', async (type, file) => {
       console.log(makeLabel('CLI', 'info'), `Change detected: ${type} ${file}`)
       await buildAll().catch(handleError)
