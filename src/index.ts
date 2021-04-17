@@ -1,7 +1,6 @@
 import fs from 'fs'
 import { dirname, join, extname, basename } from 'path'
 import { Worker } from 'worker_threads'
-import colors from 'chalk'
 import type { InputOption } from 'rollup'
 import { transform as transformToEs5 } from 'buble'
 import {
@@ -31,6 +30,7 @@ import type { ChildProcess } from 'child_process'
 import execa from 'execa'
 import consola from 'consola'
 import { version } from '../package.json'
+import { log, setSilent } from './log'
 
 export type Format = 'cjs' | 'esm' | 'iife'
 
@@ -95,7 +95,7 @@ export type Options = {
   clean?: boolean
   esbuildPlugins?: EsbuildPlugin[]
   /**
-   * Silent non-error logs (excluding "onSuccess" output)
+   * Supress non-error logs (excluding "onSuccess" output)
    */
   silent?: boolean
 }
@@ -104,28 +104,6 @@ export type NormalizedOptions = MarkRequired<
   Options,
   'entryPoints' | 'format' | 'outDir'
 >
-
-export const makeLabel = (input: string, type: 'info' | 'success' | 'error') =>
-  colors[type === 'info' ? 'bgBlue' : type === 'error' ? 'bgRed' : 'bgGreen'](
-    colors.black(` ${input.toUpperCase()} `)
-  )
-
-let silent = false
-export function log(
-  label: string,
-  type: 'info' | 'success' | 'error',
-  ...data: any[]
-) {
-  switch (type) {
-    case 'error': {
-      return console.error(makeLabel(label, type), ...data)
-    }
-    default:
-      if (silent) return
-
-      console.log(makeLabel(label, type), ...data)
-  }
-}
 
 const getOutputExtensionMap = (
   pkgTypeField: string | undefined,
@@ -393,6 +371,8 @@ const normalizeOptions = async (
 }
 
 export async function build(_options: Options) {
+  setSilent(_options.silent)
+
   log('CLI', 'info', `tsup v${version}`)
 
   const config = await loadTsupConfig(process.cwd())
@@ -403,20 +383,23 @@ export async function build(_options: Options) {
 
   const options = await normalizeOptions(config.data, _options)
 
-  silent = !!options.silent
-
   if (_options.watch) {
     log('CLI', 'info', 'Running in watch mode')
   }
 
   let existingOnSuccess: ChildProcess | undefined
 
-  const buildAll = async () => {
+  async function killPreviousProcess() {
     if (existingOnSuccess) {
       await killProcess({
         pid: existingOnSuccess.pid,
       })
+      existingOnSuccess = undefined
     }
+  }
+
+  const buildAll = async () => {
+    await killPreviousProcess()
 
     if (options.clean) {
       await removeFiles(['**/*', '!**/*.d.ts'], options.outDir)
@@ -430,6 +413,7 @@ export async function build(_options: Options) {
       ),
     ])
     if (options.onSuccess) {
+      await killPreviousProcess()
       const parts = parseArgsStringToArgv(options.onSuccess)
       const exec = parts[0]
       const args = parts.splice(1)

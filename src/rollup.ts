@@ -1,11 +1,12 @@
 import { parentPort } from 'worker_threads'
 import { InputOptions, OutputOptions, Plugin } from 'rollup'
-import { log, NormalizedOptions } from './'
+import { NormalizedOptions } from './'
 import hashbangPlugin from 'rollup-plugin-hashbang'
 import jsonPlugin from '@rollup/plugin-json'
 import { handleError } from './errors'
 import { getDeps, removeFiles, loadTsConfig } from './utils'
 import { TsResolveOptions, tsResolvePlugin } from './rollup/ts-resolve'
+import { log, setSilent } from './log'
 
 // Use `require` to esbuild use the cjs build of rollup-plugin-dts
 // the mjs build of rollup-plugin-dts uses `import.meta.url` which makes Node throws syntax error
@@ -20,6 +21,7 @@ type RollupConfig = {
 const getRollupConfig = async (
   options: NormalizedOptions
 ): Promise<RollupConfig> => {
+  setSilent(options.silent)
   const compilerOptions: {
     baseUrl?: string
     paths?: Record<string, string[]>
