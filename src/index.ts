@@ -303,7 +303,7 @@ const killProcess = ({
   timeout = 5000,
 }: {
   pid: number
-  signal: string | number
+  signal?: string | number
   timeout?: number
 }) =>
   new Promise<void>((resolve, reject) => {
@@ -398,7 +398,6 @@ export async function build(_options: Options) {
     if (existingOnSuccess) {
       await killProcess({
         pid: existingOnSuccess.pid,
-        signal: 'SIGINT',
       })
     }
 
@@ -434,18 +433,32 @@ export async function build(_options: Options) {
         : [options.ignoreWatch]
       : []
 
-    const watcher = chokidarWatch(
-      typeof options.watch === 'boolean' ? '.' : options.watch,
-      {
-        ignoreInitial: true,
-        ignorePermissionErrors: true,
-        ignored: [
-          '**/{.git,node_modules}/**',
-          options.outDir,
-          ...customIgnores,
-        ],
-      }
+    const ignored = [
+      '**/{.git,node_modules}/**',
+      options.outDir,
+      ...customIgnores,
+    ]
+
+    const watchPaths = typeof options.watch === 'boolean' ? '.' : options.watch
+
+    console.log(
+      makeLabel('CLI', 'info'),
+      `Watching for changes in ${
+        Array.isArray(watchPaths)
+          ? watchPaths.map((v) => '"' + v + '"').join(' | ')
+          : '"' + watchPaths + '"'
+      }`
     )
+    console.log(
+      makeLabel('CLI', 'info'),
+      `Ignoring changes in ${ignored.map((v) => '"' + v + '"').join(' | ')}`
+    )
+
+    const watcher = chokidarWatch(watchPaths, {
+      ignoreInitial: true,
+      ignorePermissionErrors: true,
+      ignored,
+    })
     watcher.on('all', async (type, file) => {
       console.log(makeLabel('CLI', 'info'), `Change detected: ${type} ${file}`)
       await buildAll().catch(handleError)
