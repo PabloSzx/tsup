@@ -444,7 +444,6 @@ export async function build(_options: Options) {
           options.outDir,
           ...customIgnores,
         ],
-        awaitWriteFinish: true,
       }
     )
     watcher.on('all', async (type, file) => {
