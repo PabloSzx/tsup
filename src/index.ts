@@ -18,9 +18,10 @@ import {
   loadTsupConfig,
   removeFiles,
   rewriteImportMetaUrl,
+  debouncePromise,
 } from './utils'
 import glob from 'globby'
-import { handleError, PrettyError } from './errors'
+import { PrettyError } from './errors'
 import { postcssPlugin } from './esbuild/postcss'
 import { externalPlugin } from './esbuild/external'
 import { sveltePlugin } from './esbuild/svelte'
@@ -398,8 +399,12 @@ export async function build(_options: Options) {
     }
   }
 
+  const debouncedBuildAll = debouncePromise(() => {
+    return buildAll()
+  }, 100)
+
   const buildAll = async () => {
-    await killPreviousProcess()
+    const killPromise = killPreviousProcess()
 
     if (options.clean) {
       await removeFiles(['**/*', '!**/*.d.ts'], options.outDir)
@@ -413,7 +418,7 @@ export async function build(_options: Options) {
       ),
     ])
     if (options.onSuccess) {
-      await killPreviousProcess()
+      await killPromise
       const parts = parseArgsStringToArgv(options.onSuccess)
       const exec = parts[0]
       const args = parts.splice(1)
@@ -471,7 +476,7 @@ export async function build(_options: Options) {
     })
     watcher.on('all', async (type, file) => {
       log('CLI', 'info', `Change detected: ${type} ${file}`)
-      await buildAll().catch(handleError)
+      debouncedBuildAll()
     })
   }
 
