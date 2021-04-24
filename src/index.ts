@@ -132,8 +132,6 @@ export async function runEsbuild(
   { format, css }: { format: Format; css?: Map<string, string> }
 ): Promise<BuildResult | undefined> {
   const pkg = await loadPkg(process.cwd())
-  const deps = await getDeps(process.cwd())
-  const external = [...deps, ...(options.external || [])]
   const outDir = options.outDir
 
   const outExtension = getOutputExtensionMap(pkg.type, format)
