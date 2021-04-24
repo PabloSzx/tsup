@@ -8,6 +8,7 @@ import {
   BuildResult,
   Plugin as EsbuildPlugin,
   formatMessages,
+  Plugin,
 } from 'esbuild'
 import type { MarkRequired, Buildable } from 'ts-essentials'
 import {
@@ -23,7 +24,6 @@ import {
 import glob from 'globby'
 import { handleError, PrettyError } from './errors'
 import { postcssPlugin } from './esbuild/postcss'
-import { externalPlugin } from './esbuild/external'
 import { sveltePlugin } from './esbuild/svelte'
 import resolveFrom from 'resolve-from'
 import { parseArgsStringToArgv } from 'string-argv'
@@ -154,6 +154,17 @@ export async function runEsbuild(
 
   const splitting = options.splitting !== false
 
+  const makeAllPackagesExternalPlugin: Plugin = {
+    name: 'make-all-packages-external',
+    setup(build) {
+      let filter = /^[^.\/]|^\.[^.\/]|^\.\.[^\/]/ // Must not start with "/" or "./" or "../"
+      build.onResolve({ filter }, (args) => ({
+        path: args.path,
+        external: true,
+      }))
+    },
+  }
+
   try {
     result = await esbuild({
       entryPoints: options.entryPoints,
@@ -166,9 +177,7 @@ export async function runEsbuild(
       sourcemap: options.sourcemap,
       target: options.target === 'es5' ? 'es2016' : options.target,
       plugins: [
-        // esbuild's `external` option doesn't support RegExp
-        // So here we use a custom plugin to implement it
-        externalPlugin(external),
+        makeAllPackagesExternalPlugin,
         postcssPlugin({ css }),
         sveltePlugin({ css }),
         ...(options.esbuildPlugins || []),
