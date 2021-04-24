@@ -24,6 +24,7 @@ import {
 import glob from 'globby'
 import { handleError, PrettyError } from './errors'
 import { postcssPlugin } from './esbuild/postcss'
+import { externalPlugin } from './esbuild/external'
 import { sveltePlugin } from './esbuild/svelte'
 import resolveFrom from 'resolve-from'
 import { parseArgsStringToArgv } from 'string-argv'
@@ -100,6 +101,10 @@ export type Options = {
    * Supress non-error logs (excluding "onSuccess" process output)
    */
   silent?: boolean
+  /**
+   * Node module resolution
+   */
+  node?: boolean
 }
 
 export type NormalizedOptions = MarkRequired<
@@ -132,6 +137,8 @@ export async function runEsbuild(
   { format, css }: { format: Format; css?: Map<string, string> }
 ): Promise<BuildResult | undefined> {
   const pkg = await loadPkg(process.cwd())
+  const deps = await getDeps(process.cwd())
+  const external = [...deps, ...(options.external || [])]
   const outDir = options.outDir
 
   const outExtension = getOutputExtensionMap(pkg.type, format)
@@ -175,7 +182,9 @@ export async function runEsbuild(
       sourcemap: options.sourcemap,
       target: options.target === 'es5' ? 'es2016' : options.target,
       plugins: [
-        makeAllPackagesExternalPlugin,
+        // esbuild's `external` option doesn't support RegExp
+        // So here we use a custom plugin to implement it
+        options.node ? makeAllPackagesExternalPlugin : externalPlugin(external),
         postcssPlugin({ css }),
         sveltePlugin({ css }),
         ...(options.esbuildPlugins || []),
@@ -351,6 +360,9 @@ const normalizeOptions = async (
     }
     if (!options.jsxFragment) {
       options.jsxFragment = tsconfig.data.compilerOptions?.jsxFragmentFactory
+    }
+    if (!options.node) {
+      options.node = tsconfig.data.compilerOptions?.moduleResolution === 'node'
     }
   }
 

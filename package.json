@@ -1,6 +1,6 @@
 {
   "name": "@pablosz/tsup",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "repository": {
     "url": "https://github.com/egoist/tsup.git"
   },
